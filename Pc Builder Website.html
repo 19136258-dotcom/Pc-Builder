@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PC Builder Studio with FPS Predictor</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --panel-bg: #131b2e;
+      --panel-border: #23314d;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.4);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      
+      /* Dynamic Case & Mobo Colors */
+      --case-frame: #1e293b;
+      --case-bg: #0f172a;
+      --case-accent: #3b82f6;
+      --mobo-bg: #064e3b;
+      --mobo-heatsink: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #0f172a;
+      border-bottom: 1px solid var(--panel-border);
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      background: linear-gradient(90deg, #60a5fa, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .app-container {
+      display: grid;
+      grid-template-columns: 380px 1fr 320px;
+      gap: 20px;
+      padding: 20px;
+      flex-grow: 1;
+      height: calc(100vh - 70px);
+    }
+
+    /* --- SIDEBAR: HARDWARE DATABASE --- */
+    .drawer {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .category-section {
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .category-header {
+      padding: 12px 16px;
+      background: #1e293b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+    }
+
+    .category-header:hover {
+      background: #283548;
+    }
+
+    .category-content {
+      display: none; /* All widgets closed by default */
+      padding: 10px;
+      flex-direction: column;
+      gap: 8px;
+      background: #0d1322;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .category-section.active .category-content {
+      display: flex;
+    }
+
+    .part-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: grab;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
+    .part-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .part-card h5 {
+      font-size: 0.85rem;
+      margin-bottom: 3px;
+    }
+
+    .part-card p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .socket-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      background: #3b82f6;
+      color: white;
+      margin-left: 6px;
+    }
+
+    /* --- VISUAL CANVAS WORKSPACE --- */
+    .workspace {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      background: radial-gradient(circle at center, #1e293b 0%, #080c14 100%);
+      border-radius: 12px;
+      overflow: auto;
+      padding: 20px;
+    }
+
+    .canvas-placeholder {
+      position: absolute;
+      color: var(--text-muted);
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .pc-case {
+      width: 550px;
+      height: 660px;
+      background-color: var(--case-bg);
+      border: 14px solid var(--case-frame);
+      border-radius: 20px;
+      position: relative;
+      box-shadow: 0 0 35px var(--case-accent), inset 0 0 40px rgba(0,0,0,0.8);
+      transition: all 0.4s ease;
+      display: none;
+    }
+
+    .motherboard-plate {
+      position: absolute;
+      top: 35px;
+      left: 35px;
+      width: 420px;
+      height: 460px;
+      background-color: var(--mobo-bg);
+      border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.15);
+      background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 24px 24px, 12px 12px, 12px 12px;
+      box-shadow: 4px 6px 20px rgba(0,0,0,0.6);
+      transition: background-color 0.4s ease;
+      display: none;
+    }
+
+    .mobo-label {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 1px;
+    }
+
+    .mobo-heatsink {
+      position: absolute;
+      background: linear-gradient(135deg, var(--mobo-heatsink), #0f172a);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      transition: background 0.4s ease;
+    }
+    .hs-vrm1 { top: 20px; left: 20px; width: 220px; height: 35px; }
+    .hs-vrm2 { top: 65px; left: 20px; width: 35px; height: 130px; }
+    .hs-chipset { bottom: 40px; right: 40px; width: 90px; height: 90px; border-radius: 8px; }
+
+    .drop-slot {
+      position: absolute;
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.6);
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .drop-slot.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: white;
+    }
+
+    #slot-cpu { top: 75px; left: 95px; width: 90px; height: 90px; background: rgba(0,0,0,0.3); }
+    
+    .ram-container-side-by-side {
+      position: absolute;
+      top: 60px;
+      left: 215px;
+      display: flex;
+      flex-direction: row;
+      gap: 6px;
+    }
+    .ram-slot-individual {
+      position: relative !important;
+      width: 14px;
+      height: 135px;
+    }
+
+    #slot-gpu { top: 235px; left: 35px; width: 350px; height: 85px; z-index: 5; }
+    #slot-ssd { top: 340px; left: 95px; width: 110px; height: 32px; }
+    #slot-psu { bottom: 20px; left: 25px; width: 470px; height: 110px; border-style: solid; background: #070a12; }
+
+    .rendered-part {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-align: center;
+      user-select: none;
+    }
+
+    .render-cpu {
+      background: linear-gradient(135deg, #e2e8f0 0%, #64748b 100%);
+      border: 2px solid #94a3b8;
+      color: #0f172a;
+    }
+    .render-cpu::after {
+      content: '';
+      width: 42px; height: 42px;
+      border: 1px solid #475569;
+      background: linear-gradient(45deg, #f8fafc, #94a3b8);
+      border-radius: 3px;
+    }
+
+    .render-ram {
+      background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+      border: 1px solid #93c5fd;
+      color: white;
+      writing-mode: vertical-rl;
+      letter-spacing: 1px;
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .render-gpu {
+      background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid #475569;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 10px;
+      overflow: hidden;
+    }
+    .gpu-fan {
+      width: 65px; height: 65px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #000 25%, #334155 80%);
+      border: 2px dashed #94a3b8;
+      animation: spin 3s linear infinite;
+    }
+
+    .render-psu {
+      background: linear-gradient(90deg, #1e293b, #0f172a);
+      border: 2px solid #475569;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      padding: 15px;
+      align-items: center;
+    }
+    .psu-grill {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: repeating-radial-gradient(circle, #000, #000 3px, #475569 4px);
+    }
+
+    .render-ssd {
+      background: linear-gradient(90deg, #334155, #0f172a);
+      border: 1px solid #64748b;
+      color: #e2e8f0;
+    }
+
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* --- STATS & SUMMARY PANEL --- */
+    .summary-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .summary-panel h3 {
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 10px;
+      font-size: 1.1rem;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .stat-row strong {
+      color: var(--text);
+    }
+
+    .total-cost {
+      font-size: 1.5rem;
+      color: var(--success);
+      font-weight: 800;
+    }
+
+    .status-badge {
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    .status-ok { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--success); color: var(--success); }
+    .status-warn { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); }
+
+    /* FPS Prediction Section */
+    .fps-section {
+      background: #0f172a;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .fps-section h4 {
+      font-size: 0.9rem;
+      color: #60a5fa;
+      margin-bottom: 4px;
+      border-bottom: 1px dashed var(--panel-border);
+      padding-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>PC Builder</h1>
+    <span>Interactive Visual Rig Configurator</span>
+  </header>
+
+  <div class="app-container">
+    <!-- LEFT: HARDWARE DATABASE DRAWER -->
+    <div class="drawer" id="catalog-drawer"></div>
+
+    <!-- CENTER: PC VISUALIZER WORKSPACE -->
+    <div class="workspace" id="workspace-container">
+      <div class="canvas-placeholder" id="placeholder-msg">
+        Select or drag a PC Case to begin your build.
+      </div>
+
+      <div class="pc-case drop-slot" id="pc-case-viewport" data-slot="case">
+        <div class="motherboard-plate drop-slot" id="motherboard-plate" data-slot="motherboard">
+          <div class="mobo-label" id="mobo-socket-tag">SOCKET: UNKNOWN</div>
+
+          <div class="mobo-heatsink hs-vrm1"></div>
+          <div class="mobo-heatsink hs-vrm2"></div>
+          <div class="mobo-heatsink hs-chipset"></div>
+
+          <div class="drop-slot" id="slot-cpu" data-slot="cpu">CPU SOCKET</div>
+          
+          <div class="ram-container-side-by-side">
+            <div class="drop-slot ram-slot-individual" id="slot-ram-1" data-slot="ram" data-ram-index="0">1</div>
+            <div class="drop-slot ram-slot-individual" id="slot-ram-2" data-slot="ram" data-ram-index="1">2</div>
+            <div class="drop-slot ram-slot-individual" id="slot-ram-3" data-slot="ram" data-ram-index="2">3</div>
+            <div class="drop-slot ram-slot-individual" id="slot-ram-4" data-slot="ram" data-ram-index="3">4</div>
+          </div>
+
+          <div class="drop-slot" id="slot-gpu" data-slot="gpu">PCIe x16 GPU SLOT</div>
+          <div class="drop-slot" id="slot-ssd" data-slot="ssd">M.2 NVMe SLOT</div>
+        </div>
+
+        <div class="drop-slot" id="slot-psu" data-slot="psu">POWER SUPPLY BAY</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: LIVE BUILD STATS & FPS PREDICTOR -->
+    <div class="summary-panel">
+      <h3>System Overview</h3>
+
+      <div class="stat-row">
+        <span>Selected Case:</span>
+        <strong id="stat-case">None</strong>
+      </div>
+      <div class="stat-row">
+        <span>Motherboard:</span>
+        <strong id="stat-mobo">None</strong>
+      </div>
+      <div class="stat-row">
+        <span>Mobo Socket:</span>
+        <strong id="stat-socket">None</strong>
+      </div>
+      <div class="stat-row">
+        <span>RAM Modules:</span>
+        <strong id="stat-ram-count">0 / 4 Slots</strong>
+      </div>
+      <div class="stat-row">
+        <span>Est. Power Draw:</span>
+        <strong id="stat-watts">0 W</strong>
+      </div>
+      <div class="stat-row">
+        <span>PSU Supply:</span>
+        <strong id="stat-psu">0 W</strong>
+      </div>
+
+      <!-- FPS PREDICTOR BOX -->
+      <div class="fps-section">
+        <h4>Estimated FPS (1080p High)</h4>
+        <div class="stat-row">
+          <span>Fortnite (Epic):</span>
+          <strong id="fps-fortnite">--</strong>
+        </div>
+        <div class="stat-row">
+          <span>Minecraft (Vanilla):</span>
+          <strong id="fps-minecraft">--</strong>
+        </div>
+        <div class="stat-row">
+          <span>Satisfactory (Ultra):</span>
+          <strong id="fps-satisfactory">--</strong>
+        </div>
+      </div>
+
+      <hr style="border-color: var(--panel-border)">
+
+      <div class="stat-row">
+        <span>Total Price:</span>
+        <span class="total-cost" id="stat-price">$0.00</span>
+      </div>
+
+      <div id="status-box" class="status-badge status-ok">
+        ✔ Open a category on the left to start adding parts.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const productDatabase = {
+      case: {
+        title: "1. PC Cases",
+        items: [
+          { id: 'c1', slot: 'case', name: 'Corsair 4000D Airflow', price: 104.99, frameColor: '#334155', caseBg: '#0f172a', accent: '#3b82f6' },
+          { id: 'c2', slot: 'case', name: 'NZXT H9 Flow Matte White', price: 159.99, frameColor: '#f1f5f9', caseBg: '#1e293b', accent: '#38bdf8' },
+          { id: 'c3', slot: 'case', name: 'Lian Li O11 Dynamic EVO Black', price: 169.99, frameColor: '#475569', caseBg: '#090d16', accent: '#a855f7' },
+          { id: 'c4', slot: 'case', name: 'HYTE Y60 Panoramic Red', price: 199.99, frameColor: '#be185d', caseBg: '#181825', accent: '#f43f5e' },
+          { id: 'c5', slot: 'case', name: 'Fractal Design North Charcoal', price: 139.99, frameColor: '#78350f', caseBg: '#111827', accent: '#f59e0b' }
+        ]
+      },
+      motherboard: {
+        title: "2. Motherboards (AM5 / LGA)",
+        items: [
+          { id: 'm1', slot: 'motherboard', name: 'ASUS ROG Strix X670E-F Gaming', price: 449.99, socket: 'AM5', bg: '#064e3b', heatsink: '#475569' },
+          { id: 'm2', slot: 'motherboard', name: 'MSI MAG B650 Tomahawk WiFi', price: 219.99, socket: 'AM5', bg: '#111827', heatsink: '#3b82f6' },
+          { id: 'm3', slot: 'motherboard', name: 'GIGABYTE B650 AORUS Elite AX', price: 199.99, socket: 'AM5', bg: '#1e1b4b', heatsink: '#818cf8' },
+          { id: 'm4', slot: 'motherboard', name: 'ASRock Z890 Taichi (Intel Core Ultra)', price: 499.99, socket: 'LGA1851', bg: '#312e81', heatsink: '#6366f1' },
+          { id: 'm5', slot: 'motherboard', name: 'ASUS ROG Maximus Z790 Hero', price: 579.99, socket: 'LGA1700', bg: '#1e293b', heatsink: '#94a3b8' },
+          { id: 'm6', slot: 'motherboard', name: 'MSI PRO Z790-A MAX WiFi', price: 239.99, socket: 'LGA1700', bg: '#0f172a', heatsink: '#64748b' }
+        ]
+      },
+      cpu: {
+        title: "3. Processors (CPUs)",
+        items: [
+          { id: 'cpu1', slot: 'cpu', name: 'AMD Ryzen 7 7800X3D', price: 419.00, watts: 120, socket: 'AM5', tier: 95 },
+          { id: 'cpu2', slot: 'cpu', name: 'AMD Ryzen 9 7950X3D', price: 649.00, watts: 162, socket: 'AM5', tier: 96 },
+          { id: 'cpu3', slot: 'cpu', name: 'AMD Ryzen 7 9700X', price: 359.00, watts: 65, socket: 'AM5', tier: 85 },
+          { id: 'cpu4', slot: 'cpu', name: 'AMD Ryzen 9 9950X', price: 649.00, watts: 170, socket: 'AM5', tier: 94 },
+          { id: 'cpu5', slot: 'cpu', name: 'Intel Core i7-14700K', price: 389.99, watts: 253, socket: 'LGA1700', tier: 88 },
+          { id: 'cpu6', slot: 'cpu', name: 'Intel Core i9-14900K', price: 549.99, watts: 253, socket: 'LGA1700', tier: 95 },
+          { id: 'cpu7', slot: 'cpu', name: 'Intel Core Ultra 7 265K', price: 394.00, watts: 125, socket: 'LGA1851', tier: 89 },
+          { id: 'cpu8', slot: 'cpu', name: 'Intel Core Ultra 9 285K', price: 589.00, watts: 125, socket: 'LGA1851', tier: 94 }
+        ]
+      },
+      ram: {
+        title: "4. Memory (Single DDR5 Sticks)",
+        items: [
+          { id: 'r1', slot: 'ram', name: 'Corsair Vengeance 16GB DDR5-6000', price: 64.99, watts: 8 },
+          { id: 'r2', slot: 'ram', name: 'G.Skill Trident Z5 RGB 32GB DDR5-6000', price: 139.99, watts: 12 },
+          { id: 'r3', slot: 'ram', name: 'Kingston Fury Beast 16GB DDR5-5600', price: 58.99, watts: 8 },
+          { id: 'r4', slot: 'ram', name: 'TeamGroup T-Force Delta RGB 32GB DDR5', price: 119.99, watts: 10 },
+          { id: 'r5', slot: 'ram', name: 'Crucial 16GB DDR5-4800', price: 49.99, watts: 6 }
+        ]
+      },
+      gpu: {
+        title: "5. Graphics Cards (GPUs)",
+        items: [
+          { id: 'g0', slot: 'gpu', name: 'NVIDIA GeForce RTX 5090 32GB', price: 1999.99, watts: 600, tier: 150 },
+          { id: 'g01', slot: 'gpu', name: 'NVIDIA GeForce RTX 5080 16GB', price: 999.99, watts: 400, tier: 125 },
+          { id: 'g1', slot: 'gpu', name: 'NVIDIA GeForce RTX 4060 Ti 8GB', price: 389.99, watts: 160, tier: 55 },
+          { id: 'g2', slot: 'gpu', name: 'NVIDIA GeForce RTX 4070 Super 12GB', price: 589.99, watts: 220, tier: 78 },
+          { id: 'g3', slot: 'gpu', name: 'NVIDIA GeForce RTX 4070 Ti Super 16GB', price: 789.99, watts: 285, tier: 88 },
+          { id: 'g4', slot: 'gpu', name: 'NVIDIA GeForce RTX 4080 Super 16GB', price: 969.99, watts: 320, tier: 98 },
+          { id: 'g5', slot: 'gpu', name: 'NVIDIA GeForce RTX 4090 24GB', price: 1749.99, watts: 450, tier: 120 },
+          { id: 'g6', slot: 'gpu', name: 'AMD Radeon RX 7800 XT 16GB', price: 489.99, watts: 263, tier: 72 },
+          { id: 'g7', slot: 'gpu', name: 'AMD Radeon RX 7900 XTX 24GB', price: 929.99, watts: 355, tier: 100 }
+        ]
+      },
+      ssd: {
+        title: "6. M.2 Storage (SSDs)",
+        items: [
+          { id: 's1', slot: 'ssd', name: 'Crucial P3 Plus 1TB NVMe Gen4', price: 68.99, watts: 5 },
+          { id: 's2', slot: 'ssd', name: 'Samsung 990 PRO 2TB NVMe Gen4', price: 169.99, watts: 8 },
+          { id: 's3', slot: 'ssd', name: 'WD_BLACK SN850X 4TB NVMe Gen4', price: 309.99, watts: 10 },
+          { id: 's4', slot: 'ssd', name: 'Crucial T700 2TB NVMe Gen5 (12,400MB/s)', price: 279.99, watts: 12 }
+        ]
+      },
+      psu: {
+        title: "7. Power Supplies (PSUs)",
+        items: [
+          { id: 'p1', slot: 'psu', name: 'Corsair RM750e 750W 80+ Gold', price: 99.99, psuWatts: 750 },
+          { id: 'p2', slot: 'psu', name: 'MSI MAG A850GL 850W PCIe5 ATX3.0', price: 119.99, psuWatts: 850 },
+          { id: 'p3', slot: 'psu', name: 'Seasonic Vertex GX-1000 1000W 80+ Gold', price: 199.99, psuWatts: 1000 },
+          { id: 'p4', slot: 'psu', name: 'be quiet! Dark Power Pro 13 1300W Titanium', price: 329.99, psuWatts: 1300 }
+        ]
+      }
+    };
+
+    const currentBuild = {
+      case: null,
+      motherboard: null,
+      cpu: null,
+      ram: [null, null, null, null],
+      gpu: null,
+      ssd: null,
+      psu: null
+    };
+
+    function buildCatalogUI() {
+      const drawer = document.getElementById('catalog-drawer');
+      drawer.innerHTML = '';
+
+      Object.entries(productDatabase).forEach(([key, section]) => {
+        const secDiv = document.createElement('div');
+        secDiv.className = 'category-section';
+
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `<span>${section.title} (${section.items.length})</span> <span>▼</span>`;
+        header.onclick = () => secDiv.classList.toggle('active');
+
+        const content = document.createElement('div');
+        content.className = 'category-content';
+
+        section.items.forEach(part => {
+          const card = document.createElement('div');
+          card.className = 'part-card';
+          card.draggable = true;
+          
+          let socketBadge = part.socket ? `<span class="socket-badge">${part.socket}</span>` : '';
+
+          card.innerHTML = `
+            <h5>${part.name} ${socketBadge}</h5>
+            <p>$${part.price.toFixed(2)} ${part.watts ? `| ${part.watts}W` : ''}</p>
+          `;
+
+          card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify(part));
+          });
+
+          card.addEventListener('click', () => autoInstallPart(part));
+
+          content.appendChild(card);
+        });
+
+        secDiv.appendChild(header);
+        secDiv.appendChild(content);
+        drawer.appendChild(secDiv);
+      });
+    }
+
+    function initDragAndDrop() {
+      const workspace = document.getElementById('workspace-container');
+      workspace.addEventListener('dragover', (e) => e.preventDefault());
+      workspace.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const part = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (part.slot === 'case') {
+          currentBuild.case = part;
+          updateView();
+        }
+      });
+
+      const slots = document.querySelectorAll('.drop-slot');
+      slots.forEach(slot => {
+        slot.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          slot.classList.add('drag-over');
+        });
+
+        slot.addEventListener('dragleave', (e) => {
+          e.stopPropagation();
+          slot.classList.remove('drag-over');
+        });
+
+        slot.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          slot.classList.remove('drag-over');
+
+          const part = JSON.parse(e.dataTransfer.getData('text/plain'));
+          const targetSlotType = slot.getAttribute('data-slot');
+
+          if (part.slot === targetSlotType) {
+            if (targetSlotType === 'ram') {
+              const ramIdx = parseInt(slot.getAttribute('data-ram-index'));
+              currentBuild.ram[ramIdx] = part;
+            } else {
+              currentBuild[targetSlotType] = part;
+            }
+            updateView();
+          } else {
+            alert(`Incompatible target! Drop ${part.slot.toUpperCase()} parts into their appropriate slots.`);
+          }
+        });
+      });
+    }
+
+    function autoInstallPart(part) {
+      if (part.slot === 'ram') {
+        const emptyIdx = currentBuild.ram.findIndex(r => r === null);
+        if (emptyIdx !== -1) {
+          currentBuild.ram[emptyIdx] = part;
+        } else {
+          alert("All 4 RAM slots are full! Click an installed stick inside the case to remove it first.");
+        }
+      } else {
+        currentBuild[part.slot] = part;
+      }
+      updateView();
+    }
+
+    function removePart(type, ramIdx = null) {
+      if (type === 'ram' && ramIdx !== null) {
+        currentBuild.ram[ramIdx] = null;
+      } else {
+        currentBuild[type] = null;
+      }
+      updateView();
+    }
+
+    function updateView() {
+      const pcCaseView = document.getElementById('pc-case-viewport');
+      const moboPlateView = document.getElementById('motherboard-plate');
+      const placeholderMsg = document.getElementById('placeholder-msg');
+
+      if (currentBuild.case) {
+        pcCaseView.style.display = 'block';
+        placeholderMsg.style.display = 'none';
+        document.documentElement.style.setProperty('--case-frame', currentBuild.case.frameColor);
+        document.documentElement.style.setProperty('--case-bg', currentBuild.case.caseBg);
+        document.documentElement.style.setProperty('--case-accent', currentBuild.case.accent);
+      } else {
+        pcCaseView.style.display = 'none';
+        placeholderMsg.style.display = 'block';
+        placeholderMsg.innerText = 'Select or drag a PC Case to begin your build.';
+      }
+
+      if (currentBuild.motherboard) {
+        moboPlateView.style.display = 'block';
+        document.documentElement.style.setProperty('--mobo-bg', currentBuild.motherboard.bg);
+        document.documentElement.style.setProperty('--mobo-heatsink', currentBuild.motherboard.heatsink);
+        document.getElementById('mobo-socket-tag').innerText = `SOCKET: ${currentBuild.motherboard.socket}`;
+      } else {
+        moboPlateView.style.display = 'none';
+        if (currentBuild.case) {
+          placeholderMsg.style.display = 'block';
+          placeholderMsg.innerText = 'Now select a Motherboard to place inside the case.';
+        }
+      }
+
+      const cpuSlot = document.getElementById('slot-cpu');
+      if (currentBuild.cpu) {
+        cpuSlot.innerHTML = `<div class="rendered-part render-cpu" title="Click to remove">${currentBuild.cpu.name}</div>`;
+        cpuSlot.querySelector('.rendered-part').onclick = () => removePart('cpu');
+      } else {
+        cpuSlot.innerText = 'CPU SOCKET';
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const slotEl = document.getElementById(`slot-ram-${i + 1}`);
+        const ramItem = currentBuild.ram[i];
+        if (ramItem) {
+          slotEl.innerHTML = `<div class="rendered-part render-ram" title="${ramItem.name} (Click to remove)">RAM</div>`;
+          slotEl.querySelector('.rendered-part').onclick = () => removePart('ram', i);
+        } else {
+          slotEl.innerText = i + 1;
+        }
+      }
+
+      const gpuSlot = document.getElementById('slot-gpu');
+      if (currentBuild.gpu) {
+        gpuSlot.innerHTML = `
+          <div class="rendered-part render-gpu" title="Click to remove">
+            <div class="gpu-fan"></div>
+            <span>${currentBuild.gpu.name}</span>
+            <div class="gpu-fan"></div>
+          </div>
+        `;
+        gpuSlot.querySelector('.rendered-part').onclick = () => removePart('gpu');
+      } else {
+        gpuSlot.innerText = 'PCIe x16 GPU SLOT';
+      }
+
+      const ssdSlot = document.getElementById('slot-ssd');
+      if (currentBuild.ssd) {
+        ssdSlot.innerHTML = `<div class="rendered-part render-ssd" title="Click to remove">${currentBuild.ssd.name}</div>`;
+        ssdSlot.querySelector('.rendered-part').onclick = () => removePart('ssd');
+      } else {
+        ssdSlot.innerText = 'M.2 NVMe SLOT';
+      }
+
+      const psuSlot = document.getElementById('slot-psu');
+      if (currentBuild.psu) {
+        psuSlot.innerHTML = `
+          <div class="rendered-part render-psu" title="Click to remove">
+            <div class="psu-grill"></div>
+            <span>${currentBuild.psu.name}</span>
+          </div>
+        `;
+        psuSlot.querySelector('.rendered-part').onclick = () => removePart('psu');
+      } else {
+        psuSlot.innerText = 'POWER SUPPLY BAY';
+      }
+
+      calculateStats();
+    }
+
+    function calculateStats() {
+      let price = 0;
+      let watts = 0;
+      let psuSupply = 0;
+      let ramCount = 0;
+
+      if (currentBuild.case) price += currentBuild.case.price;
+      if (currentBuild.motherboard) price += currentBuild.motherboard.price;
+
+      if (currentBuild.cpu) { price += currentBuild.cpu.price; watts += currentBuild.cpu.watts; }
+      if (currentBuild.gpu) { price += currentBuild.gpu.price; watts += currentBuild.gpu.watts; }
+      if (currentBuild.ssd) { price += currentBuild.ssd.price; watts += currentBuild.ssd.watts; }
+      if (currentBuild.psu) { price += currentBuild.psu.price; psuSupply = currentBuild.psu.psuWatts; }
+
+      currentBuild.ram.forEach(stick => {
+        if (stick) {
+          price += stick.price;
+          watts += stick.watts;
+          ramCount++;
+        }
+      });
+
+      document.getElementById('stat-case').innerText = currentBuild.case ? currentBuild.case.name : 'None';
+      document.getElementById('stat-mobo').innerText = currentBuild.motherboard ? currentBuild.motherboard.name : 'None';
+      document.getElementById('stat-socket').innerText = currentBuild.motherboard ? currentBuild.motherboard.socket : 'None';
+      document.getElementById('stat-ram-count').innerText = `${ramCount} / 4 Slots`;
+      document.getElementById('stat-watts').innerText = `${watts} W`;
+      document.getElementById('stat-psu').innerText = `${psuSupply} W`;
+      document.getElementById('stat-price').innerText = `$${price.toFixed(2)}`;
+
+      // --- GAME FPS PREDICTION CALCULATIONS ---
+      const fortniteEl = document.getElementById('fps-fortnite');
+      const minecraftEl = document.getElementById('fps-minecraft');
+      const satisfactoryEl = document.getElementById('fps-satisfactory');
+
+      if (!currentBuild.gpu || !currentBuild.cpu) {
+        fortniteEl.innerText = 'Need CPU & GPU';
+        minecraftEl.innerText = 'Need CPU & GPU';
+        satisfactoryEl.innerText = 'Need CPU & GPU';
+      } else {
+        const gpuTier = currentBuild.gpu.tier || 70;
+        const cpuTier = currentBuild.cpu.tier || 80;
+        const isX3D = currentBuild.cpu.name.includes('X3D'); // X3D cache benefit for Fortnite/Minecraft
+
+        // Heuristic formula for FPS estimation at 1080p High/Epic settings
+        let fnFPS = Math.round((gpuTier * 1.6) + (cpuTier * 0.5));
+        let mcFPS = Math.round((cpuTier * 3.2) + (gpuTier * 1.0)); // Minecraft relies heavily on CPU/cache
+        let satFPS = Math.round((gpuTier * 1.4) + (cpuTier * 0.4));
+
+        if (isX3D) {
+          fnFPS = Math.round(fnFPS * 1.25);
+          mcFPS = Math.round(mcFPS * 1.45);
+        }
+
+        fortniteEl.innerText = `${fnFPS} FPS`;
+        minecraftEl.innerText = `${mcFPS} FPS`;
+        satisfactoryEl.innerText = `${satFPS} FPS`;
+      }
+
+      // --- COMPATIBILITY STATUS ---
+      const statusBox = document.getElementById('status-box');
+      const warnings = [];
+
+      if (!currentBuild.case) warnings.push('• Please select a PC Case.');
+      if (!currentBuild.motherboard) warnings.push('• Please select a Motherboard.');
+
+      if (currentBuild.cpu && currentBuild.motherboard) {
+        if (currentBuild.cpu.socket !== currentBuild.motherboard.socket) {
+          warnings.push(`⚠️ Socket Mismatch! CPU requires ${currentBuild.cpu.socket}, Motherboard is ${currentBuild.motherboard.socket}.`);
+        }
+      }
+
+      if (psuSupply > 0 && watts > psuSupply) {
+        warnings.push(`⚠️ Power Deficit! System draws ~${watts}W, PSU supplies ${psuSupply}W.`);
+      }
+
+      if (warnings.length > 0) {
+        statusBox.className = 'status-badge status-warn';
+        statusBox.innerHTML = warnings.join('<br>');
+      } else {
+        statusBox.className = 'status-badge status-ok';
+        statusBox.innerText = '✔ All installed components are fully compatible!';
+      }
+    }
+
+    // Launch Application
+    buildCatalogUI();
+    initDragAndDrop();
+    updateView();
+  </script>
+</body>
+</html>
